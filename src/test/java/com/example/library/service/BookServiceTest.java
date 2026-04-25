@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.example.library.dto.BookDTO;
 import com.example.library.exception.BookNotAvailableException;
+import com.example.library.exception.BookNotFoundException;
 import com.example.library.exception.DuplicateIsbnException;
 import com.example.library.model.Book;
 import com.example.library.model.Book.BookStatus;
@@ -31,8 +32,10 @@ class BookServiceTest {
     @InjectMocks
     private BookService bookService;
 
+    // ── LIB-13: duplicate ISBN → 409 ─────────────────────────────────────────
+
     @Test
-    void createBookThrowsWhenIsbnAlreadyExists() {
+    void createBook_throwsDuplicateIsbnException_whenIsbnAlreadyExists() {
         BookDTO.BookRequest request = new BookDTO.BookRequest(
                 "Clean Architecture",
                 "Robert C. Martin",
@@ -48,8 +51,88 @@ class BookServiceTest {
                 .hasMessageContaining("978-0134494166");
     }
 
+    // ── LIB-4: default status AVAILABLE ──────────────────────────────────────
+
     @Test
-    void borrowBookThrowsWhenBookAlreadyBorrowed() {
+    void createBook_setsStatusToAvailable_byDefault() {
+        BookDTO.BookRequest request = new BookDTO.BookRequest(
+                "The Pragmatic Programmer",
+                "David Thomas",
+                "978-0135957059",
+                Genre.TECHNOLOGY,
+                1999
+        );
+
+        Book saved = Book.builder()
+                .id(1L)
+                .title(request.title())
+                .author(request.author())
+                .isbn(request.isbn())
+                .genre(request.genre())
+                .publishedYear(request.publishedYear())
+                .status(BookStatus.AVAILABLE)
+                .build();
+        saved.setCreatedAt(LocalDateTime.now());
+        saved.setUpdatedAt(LocalDateTime.now());
+
+        when(bookRepository.existsByIsbnIgnoreCase(request.isbn())).thenReturn(false);
+        when(bookRepository.save(any(Book.class))).thenReturn(saved);
+
+        BookDTO.BookResponse response = bookService.createBook(request);
+
+        assertThat(response.status()).isEqualTo(BookStatus.AVAILABLE);
+    }
+
+    // ── LIB-15: audit trail ───────────────────────────────────────────────────
+
+    @Test
+    void createBook_populatesCreatedAtAndUpdatedAt_andTheyAreEqual() {
+        BookDTO.BookRequest request = new BookDTO.BookRequest(
+                "Clean Code",
+                "Robert C. Martin",
+                "978-0132350884",
+                Genre.TECHNOLOGY,
+                2008
+        );
+
+        LocalDateTime now = LocalDateTime.now();
+        Book saved = Book.builder()
+                .id(2L)
+                .title(request.title())
+                .author(request.author())
+                .isbn(request.isbn())
+                .genre(request.genre())
+                .publishedYear(request.publishedYear())
+                .status(BookStatus.AVAILABLE)
+                .build();
+        saved.setCreatedAt(now);
+        saved.setUpdatedAt(now);
+
+        when(bookRepository.existsByIsbnIgnoreCase(request.isbn())).thenReturn(false);
+        when(bookRepository.save(any(Book.class))).thenReturn(saved);
+
+        BookDTO.BookResponse response = bookService.createBook(request);
+
+        assertThat(response.createdAt()).isNotNull();
+        assertThat(response.updatedAt()).isNotNull();
+        assertThat(response.createdAt()).isEqualTo(response.updatedAt());
+    }
+
+    // ── LIB-13: unknown id → 404 ─────────────────────────────────────────────
+
+    @Test
+    void getBookById_throwsBookNotFoundException_whenIdDoesNotExist() {
+        when(bookRepository.findById(99999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> bookService.getBookById(99999L))
+                .isInstanceOf(BookNotFoundException.class)
+                .hasMessageContaining("99999");
+    }
+
+    // ── Borrow / return ───────────────────────────────────────────────────────
+
+    @Test
+    void borrowBook_throwsBookNotAvailableException_whenBookAlreadyBorrowed() {
         Book borrowedBook = sampleBook();
         borrowedBook.setStatus(BookStatus.BORROWED);
         borrowedBook.setBorrowerName("Alex");
@@ -64,7 +147,7 @@ class BookServiceTest {
     }
 
     @Test
-    void returnBookCalculatesOverdueFineAndResetsBorrowingState() {
+    void returnBook_calculatesOverdueFine_andResetsBorrowingState() {
         Book borrowedBook = sampleBook();
         borrowedBook.setStatus(BookStatus.BORROWED);
         borrowedBook.setBorrowerName("Taylor");
@@ -72,7 +155,7 @@ class BookServiceTest {
         borrowedBook.setDueDate(LocalDate.now().minusDays(3));
 
         when(bookRepository.findById(1L)).thenReturn(Optional.of(borrowedBook));
-        when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(bookRepository.save(any(Book.class))).thenAnswer(inv -> inv.getArgument(0));
 
         BookDTO.ReturnResponse response = bookService.returnBook(1L);
 
@@ -83,6 +166,8 @@ class BookServiceTest {
         assertThat(response.book().dueDate()).isNull();
         verify(bookRepository).save(borrowedBook);
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Book sampleBook() {
         Book book = Book.builder()
@@ -99,4 +184,3 @@ class BookServiceTest {
         return book;
     }
 }
-
