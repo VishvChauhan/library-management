@@ -35,6 +35,10 @@ public interface BookRepository extends JpaRepository<Book, Long> {
                       @Param("genre") Genre genre,
                       Pageable pageable);
 
+    List<Book> findByStatus(BookStatus status);
+
+    List<Book> findByGenre(Genre genre);
+
     List<Book> findAllByStatusAndDueDateBefore(BookStatus status, LocalDate dueDate);
 }
 
