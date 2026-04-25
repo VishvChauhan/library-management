@@ -85,7 +85,7 @@ class BookServiceTest {
     }
 
     private Book sampleBook() {
-        return Book.builder()
+        Book book = Book.builder()
                 .id(1L)
                 .title("Domain-Driven Design")
                 .author("Eric Evans")
@@ -93,9 +93,10 @@ class BookServiceTest {
                 .genre(Genre.TECHNOLOGY)
                 .publishedYear(2003)
                 .status(BookStatus.AVAILABLE)
-                .createdAt(LocalDateTime.now().minusDays(5))
-                .updatedAt(LocalDateTime.now().minusDays(1))
                 .build();
+        book.setCreatedAt(LocalDateTime.now().minusDays(5));
+        book.setUpdatedAt(LocalDateTime.now().minusDays(1));
+        return book;
     }
 }
 

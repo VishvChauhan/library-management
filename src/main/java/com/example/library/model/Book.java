@@ -7,11 +7,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -25,7 +22,7 @@ import lombok.Setter;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Book {
+public class Book extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,9 +44,10 @@ public class Book {
     @Column(nullable = false)
     private Integer publishedYear;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private BookStatus status;
+    private BookStatus status = BookStatus.AVAILABLE;
 
     @Column(length = 100)
     private String borrowerName;
@@ -58,30 +56,10 @@ public class Book {
 
     private LocalDate dueDate;
 
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
-        if (status == null) {
-            status = BookStatus.AVAILABLE;
-        }
-    }
-
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-
     public enum BookStatus {
         AVAILABLE,
-        BORROWED
+        BORROWED,
+        RESERVED
     }
 
     public enum Genre {
@@ -97,4 +75,3 @@ public class Book {
         SELF_HELP
     }
 }
-
